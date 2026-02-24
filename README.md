@@ -13,23 +13,21 @@ Download the desired model weights from [HuggingFace](https://huggingface.co/GoG
 ```bash
 mkdir -p models
 
-# Using the download helper (with docker)
+# Using the download helper (with Docker Compose)
 docker compose --profile download run download-models
 
 # Or manually download (e.g. vit_l variant):
-# Stroke segmentation model
 wget -P models/ https://huggingface.co/GoGiants1/Hi-SAM/resolve/main/sam_tss_l_hiertext.pth
-# Hierarchical detection model
 wget -P models/ https://huggingface.co/GoGiants1/Hi-SAM/resolve/main/hi_sam_l.pth
 ```
 
 Available model variants:
 
-| Variant | Stroke Checkpoint | Hierarchical Checkpoint | Size |
-|---------|-------------------|------------------------|------|
-| `vit_b` | `sam_tss_b_hiertext.pth` (50 MB) | `hi_sam_b.pth` (67 MB) | Small |
-| `vit_l` | `sam_tss_l_hiertext.pth` (123 MB) | `hi_sam_l.pth` (140 MB) | Medium |
-| `vit_h` | `sam_tss_h_hiertext.pth` (232 MB) | `hi_sam_h.pth` (249 MB) | Large |
+| Variant | Stroke Checkpoint | Hierarchical Checkpoint |
+|---------|-------------------|------------------------|
+| `vit_b` | `sam_tss_b_hiertext.pth` | `hi_sam_b.pth` |
+| `vit_l` | `sam_tss_l_hiertext.pth` | `hi_sam_l.pth` |
+| `vit_h` | `sam_tss_h_hiertext.pth` | `hi_sam_h.pth` |
 
 ### 2. Build and Run
 
@@ -43,7 +41,7 @@ The API will be available at `http://localhost:8000`.
 
 ### CPU-Only Mode
 
-The service automatically falls back to CPU if no GPU is available. Remove the `deploy.resources` section from `docker-compose.yml` if you don't have a GPU:
+The service automatically falls back to CPU if no GPU is available. To run without GPU reservations, remove the `deploy.resources` section from `docker-compose.yml`:
 
 ```yaml
 services:
@@ -59,7 +57,7 @@ services:
 
 ### `GET /health`
 
-Health check.
+Health check. Returns device info and loaded models.
 
 ```bash
 curl http://localhost:8000/health
@@ -67,7 +65,7 @@ curl http://localhost:8000/health
 
 ### `GET /models`
 
-List available and loaded models.
+List available checkpoints on disk and currently loaded models.
 
 ```bash
 curl http://localhost:8000/models
@@ -75,7 +73,7 @@ curl http://localhost:8000/models
 
 ### `POST /predict/stroke`
 
-Text stroke segmentation. Returns a binary PNG mask.
+Text stroke segmentation. Returns a binary PNG mask (white = text, black = background).
 
 ```bash
 curl -X POST http://localhost:8000/predict/stroke \
@@ -85,10 +83,11 @@ curl -X POST http://localhost:8000/predict/stroke \
   --output stroke_mask.png
 ```
 
-Parameters:
-- `image` (file, required): Input image
-- `model_type` (string, optional): `vit_b`, `vit_l`, or `vit_h` (default: `vit_l`)
-- `patch_mode` (bool, optional): Use sliding window for better small-text detection (default: `false`)
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `image` | file | yes | | Input image |
+| `model_type` | string | no | `vit_l` | `vit_b`, `vit_l`, or `vit_h` |
+| `patch_mode` | bool | no | `false` | Sliding-window mode for better small-text detection |
 
 ### `POST /predict/hierarchical`
 
@@ -102,52 +101,53 @@ curl -X POST http://localhost:8000/predict/hierarchical \
   --output results.zip
 ```
 
-Parameters:
-- `image` (file, required): Input image
-- `model_type` (string, optional): `vit_b`, `vit_l`, or `vit_h` (default: `vit_l`)
-- `points` (string, required): JSON array of `[x, y]` coordinates
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `image` | file | yes | | Input image |
+| `model_type` | string | no | `vit_l` | `vit_b`, `vit_l`, or `vit_h` |
+| `points` | string | yes | | JSON array of `[x, y]` coordinates |
 
 The returned ZIP contains:
-- `stroke_mask.png` - Overall text stroke mask
-- `point_N_line.png` - Text-line mask per point
-- `point_N_para.png` - Paragraph mask per point
-- `point_N_word.png` - Word mask per point
-- `metadata.json` - IoU scores and mask shapes
+- `stroke_mask.png` -- overall text stroke mask
+- `point_N_word.png` -- word mask per point
+- `point_N_line.png` -- text-line mask per point
+- `point_N_para.png` -- paragraph mask per point
+- `metadata.json` -- IoU scores and mask shapes
 
 ### Interactive Docs
 
 Swagger UI is available at `http://localhost:8000/docs`.
 
-## Kubernetes Deployment
+## Environment Variables
 
-A `deployment.yaml` is provided for custom Kubernetes clusters. It uses an init container (`python:3.11-slim`) to prefetch model weights from HuggingFace before the main container starts.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HISAM_REPO_PATH` | `/opt/Hi-SAM` | Path to the cloned Hi-SAM repository inside the container |
+| `MODEL_DIR` | `/models` | Directory containing model checkpoint files |
+| `HF_TOKEN` | (empty) | HuggingFace token, used by the download helpers for gated models |
 
-```bash
-# Requires HF_TOKEN secret in the cluster (optional, for gated models)
-kubectl apply -f deployment.yaml
-```
+## Deployment
 
-The init container checks for existing model files and skips the download if they are already present on the volume.
+### Docker Compose
 
-## Project Structure
+The default `docker-compose.yml` includes two services:
 
-```
-├── Dockerfile
-├── docker-compose.yml
-├── deployment.yaml       # Kubernetes deployment
-├── requirements.txt
-├── app/
-│   ├── main.py           # FastAPI endpoints
-│   ├── model.py          # Model loading and inference
-│   └── schemas.py        # Request/response schemas
-├── scripts/
-│   └── download_models.py  # HuggingFace model downloader
-└── models/               # Model checkpoints (gitignored)
-```
+- **hi-sam** -- the main FastAPI server (GPU-enabled by default)
+- **download-models** -- one-shot helper to fetch `vit_l` checkpoints from HuggingFace (activated via `--profile download`)
+
+### Kubernetes / Custom Platforms
+
+`deployment.yaml` provides a pod spec template with:
+
+- An **init container** (`python:3.11-slim`) that downloads `vit_l` checkpoints from HuggingFace before the main container starts. It skips the download if the files already exist on the volume.
+- A **main container** (`ghcr.io/cpietsch/hi-sam:latest`) running the FastAPI server with GPU resources.
+- A **5 Gi persistent volume** mounted at `/models`.
+
+Adapt the spec to your platform (standard Kubernetes Deployment, Helm chart, etc.) as needed.
 
 ## Model Download Script
 
-The included script can download specific model variants:
+The `scripts/download_models.py` helper downloads checkpoints directly from HuggingFace:
 
 ```bash
 # Download vit_l (stroke + hierarchical)
@@ -156,6 +156,25 @@ python scripts/download_models.py --model-type vit_l
 # Download only stroke model
 python scripts/download_models.py --model-type vit_l --stroke-only
 
+# Download only hierarchical model
+python scripts/download_models.py --model-type vit_l --hier-only
+
 # Download all variants
 python scripts/download_models.py --all
+```
+
+## Project Structure
+
+```
+├── Dockerfile              # PyTorch 2.1 + CUDA 11.8 base, clones Hi-SAM repo
+├── docker-compose.yml      # GPU service + model download helper
+├── deployment.yaml         # Kubernetes pod spec template
+├── requirements.txt        # FastAPI + Hi-SAM Python dependencies
+├── app/
+│   ├── main.py             # FastAPI endpoints and ZIP packaging
+│   ├── model.py            # Model loading, caching, and inference
+│   └── schemas.py          # Pydantic request/response schemas
+├── scripts/
+│   └── download_models.py  # CLI tool for downloading checkpoints
+└── models/                 # Model checkpoints (gitignored)
 ```
