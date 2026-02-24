@@ -118,14 +118,26 @@ The returned ZIP contains:
 
 Swagger UI is available at `http://localhost:8000/docs`.
 
+## Kubernetes Deployment
+
+A `deployment.yaml` is provided for custom Kubernetes clusters. It uses an init container (`python:3.11-slim`) to prefetch model weights from HuggingFace before the main container starts.
+
+```bash
+# Requires HF_TOKEN secret in the cluster (optional, for gated models)
+kubectl apply -f deployment.yaml
+```
+
+The init container checks for existing model files and skips the download if they are already present on the volume.
+
 ## Project Structure
 
 ```
 ├── Dockerfile
 ├── docker-compose.yml
+├── deployment.yaml       # Kubernetes deployment
 ├── requirements.txt
 ├── app/
-│   ├── main.py          # FastAPI endpoints
+│   ├── main.py           # FastAPI endpoints
 │   ├── model.py          # Model loading and inference
 │   └── schemas.py        # Request/response schemas
 ├── scripts/
