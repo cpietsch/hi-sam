@@ -19,16 +19,41 @@ services:
               capabilities: [gpu]
     restart: unless-stopped
 
-  # Optional: download models before starting the service
+  # Download models before starting the service:
+  #   docker compose --profile download run download-models
   download-models:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: python:3.11-slim
     volumes:
       - ./models:/models
     environment:
-      - MODEL_DIR=/models
-    entrypoint: ["python", "/app/scripts/download_models.py"]
-    command: ["--model-type", "vit_l"]
+      - HF_TOKEN=${HF_TOKEN:-}
+    entrypoint: ["python", "-c"]
+    command:
+      - |
+        import os, sys, pathlib
+
+        dest = pathlib.Path("/models")
+        dest.mkdir(parents=True, exist_ok=True)
+
+        # vit_l stroke + hierarchical checkpoints
+        expected_files = ["sam_tss_l_hiertext.pth", "hi_sam_l.pth"]
+        all_present = all((dest / f).exists() and (dest / f).stat().st_size > 0 for f in expected_files)
+        if all_present:
+            print("Model files already present, skipping download")
+            sys.exit(0)
+
+        print("Cache miss — downloading Hi-SAM vit_l checkpoints...")
+        import subprocess
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir", "huggingface_hub>=0.24,<2"])
+
+        from huggingface_hub import snapshot_download
+        snapshot_download(
+            repo_id="GoGiants1/Hi-SAM",
+            allow_patterns=["sam_tss_l_hiertext.pth", "hi_sam_l.pth"],
+            local_dir=str(dest),
+            token=os.environ.get("HF_TOKEN"),
+        )
+        print("Models cached at", dest)
+        sys.exit(0)
     profiles:
       - download
