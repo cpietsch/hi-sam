@@ -1,0 +1,34 @@
+services:
+  hi-sam:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/models
+    environment:
+      - HISAM_REPO_PATH=/opt/Hi-SAM
+      - MODEL_DIR=/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # Optional: download models before starting the service
+  download-models:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./models:/models
+    environment:
+      - MODEL_DIR=/models
+    entrypoint: ["python", "/app/scripts/download_models.py"]
+    command: ["--model-type", "vit_l"]
+    profiles:
+      - download
