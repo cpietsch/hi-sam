@@ -1,103 +1,53 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: hi-sam
-  labels:
-    app: hi-sam
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: hi-sam
-  template:
-    metadata:
-      labels:
-        app: hi-sam
-    spec:
-      initContainers:
-        - name: download-models
-          image: "ghcr.io/cpietsch/hi-sam:latest"
-          env:
-            - name: MODEL_DIR
-              value: "/models"
-            - name: MODEL_TYPE
-              value: "vit_l"
-          volumeMounts:
-            - name: models
-              mountPath: /models
-          command: ["sh", "-c", "python /app/scripts/download_models.py --model-type $MODEL_TYPE"]
-      containers:
-        - name: hi-sam
-          image: "ghcr.io/cpietsch/hi-sam:latest"
-          ports:
-            - name: http
-              containerPort: 8000
-          resources:
-            limits:
-              nvidia.com/gpu: "1"
-              memory: "16Gi"
-              cpu: "4"
-            requests:
-              nvidia.com/gpu: "1"
-              memory: "16Gi"
-              cpu: "4"
-          env:
-            - name: HISAM_REPO_PATH
-              value: "/opt/Hi-SAM"
-            - name: MODEL_DIR
-              value: "/models"
-            - name: CUDA_VISIBLE_DEVICES
-              value: "0"
-            - name: MODEL_TYPE
-              value: "vit_l"
-          volumeMounts:
-            - name: models
-              mountPath: /models
-          command: ["uvicorn"]
-          args:
-            - "app.main:app"
-            - "--host"
-            - "0.0.0.0"
-            - "--port"
-            - "8000"
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 8000
-            initialDelaySeconds: 60
-            periodSeconds: 30
-            failureThreshold: 3
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8000
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            failureThreshold: 3
-      volumes:
-        - name: models
-          persistentVolumeClaim:
-            claimName: hi-sam-models
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: hi-sam-models
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 5Gi
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: hi-sam
-spec:
-  selector:
-    app: hi-sam
-  ports:
-    - name: http
-      port: 8000
-      targetPort: 8000
+initContainers:
+  - name: download-models
+    image: "ghcr.io/cpietsch/hi-sam:latest"
+    command:
+      - "sh"
+      - "-c"
+      - "python /app/scripts/download_models.py --model-type $MODEL_TYPE"
+    environment:
+      - name: MODEL_DIR
+        value: "/models"
+      - name: MODEL_TYPE
+        value: "vit_l"
+    volumeMounts:
+      - name: models
+        mountPath: /models
+
+containers:
+  - name: hi-sam
+    image: "ghcr.io/cpietsch/hi-sam:latest"
+    ports:
+      - name: http
+        port: 8000
+    
+    # Hardware resources requested
+    cpu: "4"
+    memory: "16Gi"
+    gpu: 'nvidia.com/mig-1g.10gb'
+
+    environment:
+      - name: HISAM_REPO_PATH
+        value: "/opt/Hi-SAM"
+      - name: MODEL_DIR
+        value: "/models"
+      - name: CUDA_VISIBLE_DEVICES
+        value: "0"
+      - name: MODEL_TYPE
+        value: "vit_l"
+
+    volumeMounts:
+      - name: models
+        mountPath: /models
+        
+    command:
+      - "uvicorn"
+      - "app.main:app"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+
+volumes:
+  - name: models
+    size: 5Gi
