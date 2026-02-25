@@ -1,0 +1,33 @@
+services:
+  hi-sam:
+    image: hi-sam-cpu
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: pytorch/pytorch:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/models
+    environment:
+      - HISAM_REPO_PATH=/opt/Hi-SAM
+      - MODEL_DIR=/models
+    restart: unless-stopped
+
+  # Download models before starting the service:
+  #   docker compose -f docker-compose.cpu.yml --profile download run download-models
+  download-models:
+    image: hi-sam-cpu
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: pytorch/pytorch:latest
+    volumes:
+      - ./models:/models
+    environment:
+      - MODEL_DIR=/models
+    command: ["python", "/app/scripts/download_models.py", "--model-type", "vit_b"]
+    profiles:
+      - download

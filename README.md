@@ -37,20 +37,20 @@ docker compose up --build
 
 The API will be available at `http://localhost:8000`.
 
-**Requirements:** Docker with [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) for GPU support.
+**Requirements:** Docker. The [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) is only needed for GPU deployments.
 
 ### CPU-Only Mode
 
-The service automatically falls back to CPU if no GPU is available. To run without GPU reservations, remove the `deploy.resources` section from `docker-compose.yml`:
+The service automatically falls back to CPU if no GPU is available. For a CPU-only image (no CUDA dependencies), use the CPU compose file:
 
-```yaml
-services:
-  hi-sam:
-    build: .
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./models:/models
+```bash
+docker compose -f docker-compose.cpu.yml up --build
+```
+
+To download models with the CPU image:
+
+```bash
+docker compose -f docker-compose.cpu.yml --profile download run download-models
 ```
 
 ## API Endpoints
@@ -142,7 +142,7 @@ The default `docker-compose.yml` includes two services:
 - A **main container** (`ghcr.io/cpietsch/hi-sam:latest`) running the FastAPI server with GPU resources.
 - A **5 Gi persistent volume** mounted at `/models`.
 
-Adapt the spec to your platform (standard Kubernetes Deployment, Helm chart, etc.) as needed.
+Adapt the spec to your platform (standard Kubernetes Deployment, Helm chart, etc.) as needed. For CPU-only deployments, build an image with `BASE_IMAGE=pytorch/pytorch:latest` and remove the `nvidia.com/gpu` limits/requests plus `CUDA_VISIBLE_DEVICES`.
 
 ## Model Download Script
 
