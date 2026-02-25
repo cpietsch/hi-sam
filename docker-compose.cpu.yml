@@ -1,22 +1,4 @@
 services:
-  hi-sam:
-    image: hi-sam-cpu
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        BASE_IMAGE: pytorch/pytorch:latest
-    ports:
-      - "${PORT:-8000}:8000"
-    volumes:
-      - ./models:/models
-    environment:
-      - HISAM_REPO_PATH=/opt/Hi-SAM
-      - MODEL_DIR=/models
-    restart: unless-stopped
-
-  # Download models before starting the service:
-  #   docker compose -f docker-compose.cpu.yml --profile download run download-models
   download-models:
     image: hi-sam-cpu
     build:
@@ -25,9 +7,40 @@ services:
       args:
         BASE_IMAGE: pytorch/pytorch:latest
     volumes:
-      - ./models:/models
+      - models:/models
     environment:
       - MODEL_DIR=/models
-    command: ["python", "/app/scripts/download_models.py", "--model-type", "vit_b"]
-    profiles:
-      - download
+      - MODEL_TYPE=${MODEL_TYPE:-vit_b}
+    # Downloads models at startup; uses $$MODEL_TYPE so the shell in the
+    # container reads the container-scoped env var (not Docker Compose expansion).
+    command: ["sh", "-c", "python /app/scripts/download_models.py --model-type $$MODEL_TYPE"]
+    restart: "no"
+
+  hi-sam:
+    image: hi-sam-cpu
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: pytorch/pytorch:latest
+    depends_on:
+      download-models:
+        condition: service_completed_successfully
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      - models:/models
+    environment:
+      - HISAM_REPO_PATH=/opt/Hi-SAM
+      - MODEL_DIR=/models
+      - MODEL_TYPE=${MODEL_TYPE:-vit_b}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  models:
