@@ -67,6 +67,8 @@ def download_model(model_type: str, output_dir: str, stroke: bool = True, hier: 
         to_download.append(files["stroke"])
     if hier:
         to_download.append(files["hier"])
+    if stroke or hier:
+        to_download.append(files["encoder"])
 
     for filename in to_download:
         url = f"{BASE_URL}/{filename}"

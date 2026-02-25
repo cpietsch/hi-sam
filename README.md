@@ -142,7 +142,7 @@ The default `docker-compose.yml` includes two services:
 - A **main container** (`ghcr.io/cpietsch/hi-sam:latest`) running the FastAPI server with GPU resources.
 - A **5 Gi persistent volume** mounted at `/models`.
 
-Adapt the spec to your platform (standard Kubernetes Deployment, Helm chart, etc.) as needed. For CPU-only deployments, build an image with `BASE_IMAGE=pytorch/pytorch:2.1.0-cpu` and remove the `nvidia.com/gpu` limits/requests plus `CUDA_VISIBLE_DEVICES`.
+Adapt the spec to your platform (standard Kubernetes Deployment, Helm chart, etc.) as needed. For CPU-only deployments, build an image with `BASE_IMAGE=pytorch/pytorch:latest` and remove the `nvidia.com/gpu` limits/requests plus `CUDA_VISIBLE_DEVICES`.
 
 ## Model Download Script
 

@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import shutil
 from types import SimpleNamespace
 from pathlib import Path
 
@@ -62,10 +63,30 @@ class HiSamModelManager:
             prompt_len=12,
         )
 
+    def _ensure_encoder_checkpoint(self, model_type: str) -> None:
+        encoder_ckpt = SAM_ENCODER_CHECKPOINTS[model_type]
+        src_path = os.path.join(MODEL_DIR, encoder_ckpt)
+        dst_dir = os.path.join(os.getcwd(), "pretrained_checkpoint")
+        dst_path = os.path.join(dst_dir, encoder_ckpt)
+
+        if os.path.exists(dst_path):
+            return
+
+        if not os.path.exists(src_path):
+            raise FileNotFoundError(
+                f"SAM encoder checkpoint not found: {src_path}. "
+                f"Download it from https://huggingface.co/GoGiants1/Hi-SAM"
+            )
+
+        os.makedirs(dst_dir, exist_ok=True)
+        shutil.copy2(src_path, dst_path)
+
     def _load_model(self, model_type: str, hier_det: bool) -> object:
         """Load a Hi-SAM model and return a SamPredictor."""
         from hi_sam.modeling.build import model_registry
         from hi_sam.modeling.predictor import SamPredictor
+
+        self._ensure_encoder_checkpoint(model_type)
 
         if hier_det:
             ckpt_name = HIER_CHECKPOINTS[model_type]
