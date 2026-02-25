@@ -1,40 +1,13 @@
 initContainers:
   - name: prefetch
-    image: "python:3.11-slim"
+    image: "ghcr.io/cpietsch/hi-sam:latest"
     environment:
-      - name: HF_TOKEN
-        fromSecret: HF_TOKEN
+      - name: MODEL_DIR
+        value: "/models"
     volumeMounts:
       - name: models
         mountPath: /models
-    command: ["python", "-c"]
-    args:
-      - |
-        import os, sys, pathlib
-
-        dest = pathlib.Path("/models")
-        dest.mkdir(parents=True, exist_ok=True)
-
-        # Hi-SAM vit_l: stroke segmentation + hierarchical detection
-        expected = ["sam_tss_l_hiertext.pth", "hi_sam_l.pth"]
-        all_present = all((dest / f).exists() and (dest / f).stat().st_size > 0 for f in expected)
-        if all_present:
-            print("Models found, skipping download")
-            sys.exit(0)
-
-        print("Cache miss. Downloading Hi-SAM vit_l checkpoints...")
-        import subprocess
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir", "huggingface_hub>=0.24,<2"])
-
-        from huggingface_hub import snapshot_download
-        snapshot_download(
-            repo_id="GoGiants1/Hi-SAM",
-            allow_patterns=["sam_tss_l_hiertext.pth", "hi_sam_l.pth"],
-            local_dir=str(dest),
-            token=os.environ.get("HF_TOKEN"),
-        )
-        print("Models cached at", dest)
-        sys.exit(0)
+    command: ["python", "/app/scripts/download_models.py", "--model-type", "vit_l"]
 
 containers:
   - name: hi-sam
