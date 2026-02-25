@@ -1,16 +1,32 @@
 services:
+  download-models:
+    image: ghcr.io/cpietsch/hi-sam:latest
+    volumes:
+      - models:/models
+    environment:
+      - MODEL_DIR=/models
+      - MODEL_TYPE=${MODEL_TYPE:-vit_l}
+    # Downloads models at startup; uses $$MODEL_TYPE so the shell in the
+    # container reads the container-scoped env var (not Docker Compose expansion).
+    command: ["sh", "-c", "python /app/scripts/download_models.py --model-type $$MODEL_TYPE"]
+    restart: "no"
+
   hi-sam:
-    image: hi-sam
+    image: ghcr.io/cpietsch/hi-sam:latest
     build:
       context: .
       dockerfile: Dockerfile
+    depends_on:
+      download-models:
+        condition: service_completed_successfully
     ports:
       - "${PORT:-8000}:8000"
     volumes:
-      - ./models:/models
+      - models:/models
     environment:
       - HISAM_REPO_PATH=/opt/Hi-SAM
       - MODEL_DIR=/models
+      - MODEL_TYPE=${MODEL_TYPE:-vit_l}
     deploy:
       resources:
         reservations:
@@ -19,18 +35,12 @@ services:
               count: 1
               capabilities: [gpu]
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
-  # Download models before starting the service:
-  #   docker compose --profile download run download-models
-  download-models:
-    image: hi-sam
-    build:
-      context: .
-      dockerfile: Dockerfile
-    volumes:
-      - ./models:/models
-    environment:
-      - MODEL_DIR=/models
-    command: ["python", "/app/scripts/download_models.py", "--model-type", "vit_l"]
-    profiles:
-      - download
+volumes:
+  models:
