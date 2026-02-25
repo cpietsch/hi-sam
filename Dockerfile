@@ -1,4 +1,5 @@
-FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
+ARG BASE_IMAGE=pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
+FROM ${BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
