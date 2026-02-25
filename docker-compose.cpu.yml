@@ -7,7 +7,7 @@ services:
       args:
         BASE_IMAGE: pytorch/pytorch:latest
     ports:
-      - "8000:8000"
+      - "${PORT:-8000}:8000"
     volumes:
       - ./models:/models
     environment:
