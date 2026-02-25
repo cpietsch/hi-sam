@@ -124,7 +124,6 @@ Swagger UI is available at `http://localhost:8000/docs`.
 |----------|---------|-------------|
 | `HISAM_REPO_PATH` | `/opt/Hi-SAM` | Path to the cloned Hi-SAM repository inside the container |
 | `MODEL_DIR` | `/models` | Directory containing model checkpoint files |
-| `HF_TOKEN` | (empty) | HuggingFace token, used by the download helpers for gated models |
 
 ## Deployment
 
@@ -133,13 +132,13 @@ Swagger UI is available at `http://localhost:8000/docs`.
 The default `docker-compose.yml` includes two services:
 
 - **hi-sam** -- the main FastAPI server (GPU-enabled by default)
-- **download-models** -- one-shot helper to fetch `vit_l` checkpoints from HuggingFace (activated via `--profile download`)
+- **download-models** -- one-shot helper that runs `scripts/download_models.py` in the main image (activated via `--profile download`)
 
 ### Kubernetes / Custom Platforms
 
 `deployment.yaml` provides a pod spec template with:
 
-- An **init container** (`python:3.11-slim`) that downloads `vit_l` checkpoints from HuggingFace before the main container starts. It skips the download if the files already exist on the volume.
+- An **init container** (same image as the main container) that runs `scripts/download_models.py` to fetch `vit_l` checkpoints before the main container starts.
 - A **main container** (`ghcr.io/cpietsch/hi-sam:latest`) running the FastAPI server with GPU resources.
 - A **5 Gi persistent volume** mounted at `/models`.
 
